@@ -15983,5 +15983,465 @@
   "，获取更多折扣！": {
     "scene": "tpl",
     "count": 2
+  },
+  "本月": {
+    "scene": "tpl",
+    "count": 5
+  },
+  "推广佣金": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "成交订单": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "新开分站": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "利润": {
+    "scene": "tpl",
+    "count": 12
+  },
+  "今日利润": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "昨日利润": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "本月利润": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "趋势": {
+    "scene": "tpl",
+    "count": 4
+  },
+  "时间范围": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "7 天": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "30 天": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "指标": {
+    "scene": "tpl",
+    "count": 2
+  },
+  "成交额": {
+    "scene": "tpl",
+    "count": 4
+  },
+  "统计周期": {
+    "scene": "tpl",
+    "count": 2
+  },
+  "利润构成": {
+    "scene": "tpl",
+    "count": 2
+  },
+  "支付手续费": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "商户分成": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "分站分成": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "客单价": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "新增会员": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "兑现到余额": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "待处理": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "持平": {
+    "scene": "js",
+    "count": 1
+  },
+  "成交额 {amount} · {count} 单": {
+    "scene": "js",
+    "count": 2
+  },
+  "上月 {amount}": {
+    "scene": "js",
+    "count": 1
+  },
+  "待审核提现": {
+    "scene": "js",
+    "count": 1
+  },
+  "需站长审核": {
+    "scene": "js",
+    "count": 1
+  },
+  "待发货订单": {
+    "scene": "js",
+    "count": 1
+  },
+  "待回复工单": {
+    "scene": "js",
+    "count": 1
+  },
+  "数据加载失败，请重试": {
+    "scene": "js",
+    "count": 3
+  },
+  "网络异常，数据加载失败": {
+    "scene": "js",
+    "count": 1
+  },
+  "亏损": {
+    "scene": "js",
+    "count": 4
+  },
+  "含商户商品抽成 {amount}": {
+    "scene": "js",
+    "count": 1
+  },
+  "较昨日同时段": {
+    "scene": "js",
+    "count": 1
+  },
+  "较前日": {
+    "scene": "js",
+    "count": 1
+  },
+  "较上月同期": {
+    "scene": "js",
+    "count": 1
+  },
+  "上升": {
+    "scene": "js",
+    "count": 1
+  },
+  "下降": {
+    "scene": "js",
+    "count": 2
+  },
+  "支付通道": {
+    "scene": "tpl",
+    "count": 2
+  },
+  "暂无收款": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "已删除的通道": {
+    "scene": "js",
+    "count": 1
+  },
+  "{count} 笔": {
+    "scene": "js",
+    "count": 1
+  },
+  "全部时间": {
+    "scene": "js",
+    "count": 1
+  },
+  "未付款 {count} 单": {
+    "scene": "js",
+    "count": 1
+  },
+  "利润率 {rate}": {
+    "scene": "js",
+    "count": 1
+  },
+  "付款人数 {count}": {
+    "scene": "js",
+    "count": 1
+  },
+  "人均消费 {amount}": {
+    "scene": "js",
+    "count": 1
+  },
+  "订单 {order} · 充值 {recharge}": {
+    "scene": "js",
+    "count": 1
+  },
+  "网关 {amount}": {
+    "scene": "js",
+    "count": 2
+  },
+  "在线支付 {online} · 余额 {balance}": {
+    "scene": "js",
+    "count": 1
+  },
+  "会员与提现": {
+    "scene": "tpl",
+    "count": 1
+  },
+  "其余 {count} 个通道": {
+    "scene": "js",
+    "count": 1
+  },
+  "个种类价": {
+    "scene": "js",
+    "count": 1
+  },
+  "种类价不变：": {
+    "scene": "js",
+    "count": 1
+  },
+  "种类商品按所选种类计价，单价不参与加价": {
+    "scene": "js",
+    "count": 1
+  },
+  "该商品不支持使用优惠券": {
+    "scene": "api",
+    "count": 1
+  },
+  "商品价格已变动，请刷新页面后重新下单": {
+    "scene": "api",
+    "count": 1
+  },
+  "商品价格配置异常，暂时无法下单，请联系商家": {
+    "scene": "api",
+    "count": 1
+  },
+  "写作模式保留不了这些排版（行内样式、对齐、新窗口打开等），在写作模式里修改并保存后会丢失。仍要切换吗？": {
+    "scene": "js",
+    "count": 1
+  },
+  "切换到写作模式": {
+    "scene": "js",
+    "count": 1
+  },
+  "切换": {
+    "scene": "js",
+    "count": 1
+  },
+  "内容含写作模式保留不了的排版（行内样式等），已用 HTML 源码模式打开": {
+    "scene": "js",
+    "count": 1
+  },
+  "兑现操作过于频繁，请稍后再试": {
+    "scene": "api",
+    "count": 1
+  },
+  "文字颜色": {
+    "scene": "js",
+    "count": 2
+  },
+  "背景色": {
+    "scene": "js",
+    "count": 1
+  },
+  "默认": {
+    "scene": "js",
+    "count": 3
+  },
+  "字号": {
+    "scene": "js",
+    "count": 2
+  },
+  "对齐": {
+    "scene": "js",
+    "count": 2
+  },
+  "左对齐": {
+    "scene": "js",
+    "count": 1
+  },
+  "居中": {
+    "scene": "js",
+    "count": 1
+  },
+  "右对齐": {
+    "scene": "js",
+    "count": 1
+  },
+  "图片大小": {
+    "scene": "js",
+    "count": 2
+  },
+  "原始大小": {
+    "scene": "js",
+    "count": 1
+  },
+  "自定义": {
+    "scene": "js",
+    "count": 1
+  },
+  "文字": {
+    "scene": "js",
+    "count": 1
+  },
+  "自定义颜色": {
+    "scene": "js",
+    "count": 1
+  },
+  "图片宽度（像素，16 到 1200）": {
+    "scene": "js",
+    "count": 1
+  },
+  "宽度请填 16 到 1200 之间的整数": {
+    "scene": "js",
+    "count": 1
+  },
+  "没找到图片：把光标放在图片所在的行，或选中图片": {
+    "scene": "js",
+    "count": 1
+  },
+  "请先选中要清除样式的文字": {
+    "scene": "js",
+    "count": 1
+  },
+  "推广功能已关闭": {
+    "scene": "api",
+    "count": 2
+  },
+  "这些域名不在外链白名单里，保存时它们的链接和图片会被安全机制去掉：": {
+    "scene": "js",
+    "count": 1
+  },
+  "这些域名不在外链白名单里，保存时它们的链接和图片会被安全机制去掉，请联系站长在「安全设置 → 外链域名白名单」里加入：": {
+    "scene": "js",
+    "count": 1
+  },
+  "加入白名单": {
+    "scene": "js",
+    "count": 1
+  },
+  "暂不处理": {
+    "scene": "js",
+    "count": 1
+  },
+  "知道了": {
+    "scene": "js",
+    "count": 1
+  },
+  "已加入外链白名单，现在可以正常保存：": {
+    "scene": "js",
+    "count": 1
+  },
+  "加入白名单失败": {
+    "scene": "js",
+    "count": 2
+  },
+  "框架": {
+    "scene": "js",
+    "count": 2
+  },
+  "音视频": {
+    "scene": "js",
+    "count": 1
+  },
+  "本站的 CSP 安全策略会拦下这些外部内容，访客看不到：": {
+    "scene": "js",
+    "count": 1
+  },
+  "本站的 CSP 安全策略会拦下这些外部内容，访客看不到，请联系站长在「安全设置 → 违规统计」里允许：": {
+    "scene": "js",
+    "count": 1
+  },
+  "允许显示": {
+    "scene": "js",
+    "count": 1
+  },
+  "已允许显示，刷新页面后生效：": {
+    "scene": "js",
+    "count": 1
+  },
+  "允许失败": {
+    "scene": "js",
+    "count": 1
+  },
+  "禁止分站销售": {
+    "scene": "js",
+    "count": 1
+  },
+  "禁止": {
+    "scene": "js",
+    "count": 1
+  },
+  "开启后分站不再展示该商品，直接访问链接也无法购买，只在主站销售": {
+    "scene": "js",
+    "count": 1
+  },
+  "平台下架": {
+    "scene": "js",
+    "count": 6
+  },
+  "解除平台下架": {
+    "scene": "js",
+    "count": 2
+  },
+  "下架后商户不能自行上架，解除前一直保持下架。": {
+    "scene": "js",
+    "count": 1
+  },
+  "下架原因": {
+    "scene": "js",
+    "count": 1
+  },
+  "商户在商品列表里能看到，可留空": {
+    "scene": "js",
+    "count": 1
+  },
+  "解除后商户可以自行重新上架，商品目前仍是下架状态。": {
+    "scene": "js",
+    "count": 1
+  },
+  "已解除": {
+    "scene": "js",
+    "count": 1
+  },
+  "确认解除": {
+    "scene": "js",
+    "count": 1
+  },
+  "仅看平台下架": {
+    "scene": "js",
+    "count": 1
+  },
+  "该商品已被平台下架，请先解除平台下架": {
+    "scene": "api",
+    "count": 1
+  },
+  "下架原因最多 200 个字": {
+    "scene": "api",
+    "count": 1
+  },
+  "主站商品直接下架即可": {
+    "scene": "api",
+    "count": 1
+  },
+  "已下架，商户无法自行重新上架": {
+    "scene": "api",
+    "count": 1
+  },
+  "该商品不在平台下架状态": {
+    "scene": "api",
+    "count": 1
+  },
+  "已解除，商户可以重新上架": {
+    "scene": "api",
+    "count": 1
+  },
+  "该商品已被平台下架，无法自行上架，如有疑问请联系平台": {
+    "scene": "api",
+    "count": 1
   }
 }

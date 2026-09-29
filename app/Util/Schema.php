@@ -63,6 +63,19 @@ final class Schema
         });
     }
 
+    public static function ensureCommodityControl(): void
+    {
+        self::ensureColumn('commodity', 'substation_disable', static function (Blueprint $table): void {
+            $table->unsignedTinyInteger('substation_disable')->default(0)->comment('禁止分站销售：0=否，1=是');
+        });
+        self::ensureColumn('commodity', 'ban', static function (Blueprint $table): void {
+            $table->unsignedTinyInteger('ban')->default(0)->comment('平台下架：0=否，1=是');
+        });
+        self::ensureColumn('commodity', 'ban_reason', static function (Blueprint $table): void {
+            $table->string('ban_reason', 255)->charset('utf8mb4')->collation('utf8mb4_general_ci')->nullable()->comment('平台下架原因');
+        });
+    }
+
     /** 店铺共享的对方货币与结算汇率：非 CNY 站点接入 CNY 货源时按此换算金额 */
     public static function ensureSharedCurrency(): void
     {
@@ -71,6 +84,21 @@ final class Schema
         });
         self::ensureColumn('shared', 'currency_rate', static function (Blueprint $table): void {
             $table->decimal('currency_rate', 18, 6)->default(0)->comment('结算汇率：1 上游货币 = ? 本站货币；0 = 按站点汇率自动');
+        });
+    }
+
+    /**
+     * 上游协议代次（店铺共享）。
+     *
+     * `/shared/commodity/item` 的入参与返回形状在 3.1.2 变过，`stock`/`draft`/`valuation`
+     * 三个端点也是那之后才有的。每次都先打一发新端点再吃 404 的话，商品详情页每次访问
+     * 都要多一次往返；探明一次记在店铺档案上，之后直奔正确的那条路。
+     * 0=未探明，1=3.1.2 及以后，2=3.1.1 及更老。
+     */
+    public static function ensureSharedProtocol(): void
+    {
+        self::ensureColumn('shared', 'protocol', static function (Blueprint $table): void {
+            $table->unsignedTinyInteger('protocol')->default(0)->comment('上游协议代次：0=未探明，1=3.1.2+，2=3.1.1及更老');
         });
     }
 

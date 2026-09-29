@@ -179,6 +179,9 @@ CREATE TABLE `__PREFIX__commodity`  (
                                         `inventory_sync` tinyint NOT NULL DEFAULT 0 COMMENT '同步库存数量: 0=关，1=开',
                                         `shared_amount_sync` tinyint UNSIGNED DEFAULT 0 COMMENT '同步金额',
                                         `shared_config_sync` tinyint UNSIGNED DEFAULT 0 COMMENT '同步配置参数',
+                                        `substation_disable` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '禁止分站销售：0=否，1=是',
+                                        `ban` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '平台下架：0=否，1=是',
+                                        `ban_reason` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '平台下架原因',
                                         PRIMARY KEY (`id`) USING BTREE,
                                         UNIQUE INDEX `code`(`code` ASC) USING BTREE,
                                         INDEX `owner`(`owner` ASC) USING BTREE,
@@ -191,7 +194,7 @@ CREATE TABLE `__PREFIX__commodity`  (
                                         INDEX `recommend`(`recommend` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = DYNAMIC;
 
-INSERT INTO `__PREFIX__commodity` VALUES (1, 1, 'DEMO', '<p>该商品是演示商品</p>', '/favicon.ico', 0.00, 1.00, 0.90, 1, 0, '2021-11-26 18:01:30', 1, '8AE80574F3CA98BE', 1, 0, '', 0, 0, 1, 1, NULL, '', 0.00, NULL, 999999, 0, 0, 0, NULL, NULL, 0, 0.00, 0, NULL, 0, 0, 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, 0, 0, 0, 0);
+INSERT INTO `__PREFIX__commodity` VALUES (1, 1, 'DEMO', '<p>该商品是演示商品</p>', '/favicon.ico', 0.00, 1.00, 0.90, 1, 0, '2021-11-26 18:01:30', 1, '8AE80574F3CA98BE', 1, 0, '', 0, 0, 1, 1, NULL, '', 0.00, NULL, 999999, 0, 0, 0, NULL, NULL, 0, 0.00, 0, NULL, 0, 0, 0, 0, NULL, NULL, NULL, 0, 0, 0, 0, NULL, 0, 0, 0, 0, 0, 0, NULL);
 
 
 
@@ -483,6 +486,7 @@ CREATE TABLE `__PREFIX__shared`  (
                                      `balance` decimal(14, 2) UNSIGNED NOT NULL DEFAULT 0.00 COMMENT '余额(缓存)',
                                      `currency` varchar(8) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'CNY' COMMENT '上游站点货币代码',
                                      `currency_rate` decimal(18, 6) NOT NULL DEFAULT 0.000000 COMMENT '结算汇率：1 上游货币 = ? 本站货币；0 = 按站点汇率自动',
+                                     `protocol` tinyint UNSIGNED NOT NULL DEFAULT 0 COMMENT '上游协议代次：0=未探明，1=3.1.2+，2=3.1.1及更老',
                                      PRIMARY KEY (`id`) USING BTREE,
                                      UNIQUE INDEX `domain`(`domain` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = DYNAMIC;

@@ -31,13 +31,26 @@
         window.addEventListener('blur', reset);
     }
 
+    function safeGoto(raw, fallback) {
+        if (typeof raw !== "string" || raw === "" || raw === "null") {
+            return fallback;
+        }
+        let target;
+        try {
+            target = decodeURIComponent(raw);
+        } catch (e) {
+            return fallback;
+        }
+        const safe = target.charAt(0) === "/"
+            && target.charAt(1) !== "/"
+            && target.indexOf("\\") === -1
+            && !/[\u0000-\u001f\u007f]/.test(target);
+        return safe ? target : fallback;
+    }
+
     function _Login() {
         localStorage.removeItem("manage_token");
-        let goto = decodeURIComponent(util.getParam("goto"));
-
-        if (goto == "null") {
-            goto = "/admin/dashboard/index";
-        }
+        let goto = safeGoto(util.getParam("goto"), "/admin/dashboard/index");
 
         const eye = document.getElementById('ay-eye');
         const pass = document.getElementById('ay-pass');

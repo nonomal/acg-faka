@@ -61,6 +61,7 @@ class Order implements \App\Service\Order
         'level_price',
         'level_disable',
         'config',
+        'substation_disable',
     ];
 
     public const CALLBACK_REJECT = "fail";
@@ -151,6 +152,12 @@ class Order implements \App\Service\Order
 
         if (!$commodity) {
             throw new JSONException("商品不存在#1");
+        }
+
+        //数量必须为正。虽然 trade() 已有 num<=0 守卫，但 valuation() 也被前台询价/插件下单等路径调用，
+        //负数量会算出负价（前台展示 -6.66，且负价会命中 amount<=0 分支→免支付直发），这里统一兜底。
+        if ($num <= 0) {
+            throw new JSONException("至少购买1个");
         }
 
         $commodity = clone $commodity;
@@ -254,6 +261,13 @@ class Order implements \App\Service\Order
             }
         }
 
+        //商品的「优惠卷」开关以前只有前台模板在看（关着就不显示优惠券框），接口从不校验：
+        //全站通用券直调接口照样能用在关了券的商品上——对接商品导入时默认关券，100% 券把金额压到 0，
+        //又恰好是 0 元拦截放行的「优惠券单」，平台照付上游全价。放在 $num 判断之前，多件购买同样拦。
+        if (!empty($coupon) && (int)$commodity->coupon !== 1) {
+            throw new JSONException("该商品不支持使用优惠券");
+        }
+
         if (!empty($coupon) && $num == 1) {
             $voucher = Coupon::query()->where("code", $coupon)->first();
 
@@ -301,12 +315,12 @@ class Order implements \App\Service\Order
                 throw new JSONException("该优惠券已过期");
             }
 
-            if ($voucher->mode == 0 && $voucher->money >= $price->getAmount()) {
-                return "0";
-            }
-
-            $deduction = $voucher->mode == 0 ? $voucher->money : $price->mul($voucher->money)->getAmount();
-            $price = $price->sub($deduction);
+            $deduction = $voucher->mode == 0
+                ? (new Decimal($voucher->money, 2))->getAmount()
+                : $price->mul($voucher->money)->getAmount();
+            $price = bccomp($deduction, $price->getAmount(), 2) >= 0
+                ? new Decimal("0", 2)
+                : $price->sub($deduction);
         }
 
         return $price->mul($num)->getAmount();
@@ -473,6 +487,71 @@ class Order implements \App\Service\Order
         }
     }
 
+    /**
+     * 这个商品「本身是否有价值」——用于判断一笔算出 0 元的订单是合法的免费商品，还是被压到 0 的攻击/误配。
+     *
+     * 只要满足任一条即视为「有价值」，就不允许 0 元直发：
+     *   - 有成本(factory_price>0) 或 是转售/货源商品(shared_id>0)——0 元发货等于平台/上游净亏；
+     *   - 零售价或会员价任一为正；
+     *   - config 里任一价格档(category/wholesale/category_wholesale)为正。
+     * 全都为 0 才是「本就免费」的商品(零售价 0、无档、无成本、非货源)，允许 0 元直发。
+     * sku 是加价项、draft_premium 是溢价项，都只增不减，不参与「基础价值」判定。
+     */
+    private function commodityHasPositiveValue(Commodity $commodity): bool
+    {
+        if ((float)$commodity->factory_price > 0 || (int)$commodity->shared_id > 0) {
+            return true;
+        }
+        if ((float)$commodity->price > 0 || (float)$commodity->user_price > 0) {
+            return true;
+        }
+        $config = Ini::toArray((string)$commodity->config);
+        foreach (['category', 'wholesale', 'category_wholesale'] as $section) {
+            if (empty($config[$section]) || !is_array($config[$section])) {
+                continue;
+            }
+            $positive = false;
+            array_walk_recursive($config[$section], static function ($value) use (&$positive): void {
+                if (is_numeric($value) && (float)$value > 0) {
+                    $positive = true;
+                }
+            });
+            if ($positive) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 对接商品不许亏本卖：本站实收（顾客实付扣掉分站返利、推广分成）不能低于上游对本站账号的实时报价。
+     *
+     * 本地售价只在详情页被访问时才跟上游同步，种类/批发/SKU 还要另开配置同步，普通加价从不碰等级价，
+     * 汇率也会变——上游一涨价，本地就在不知情的情况下按旧价一直亏着卖（rent 算了却从来没人比）。
+     * 只在拿到实时报价时判断，询价失败照旧放行；用了优惠券的单是站长主动让利（要先打开商品的优惠卷开关），不拦。
+     *
+     * @throws JSONException
+     */
+    private function assertNotBelowUpstreamCost(int $commodityId, mixed $quotedRent, string|int|float $amount, string|int|float $rebate, string|int|float $divideAmount, bool $couponApplied): void
+    {
+        if ($couponApplied || !is_numeric($quotedRent) || (float)$quotedRent <= 0) {
+            return;
+        }
+
+        $net = new Decimal($amount, 2);
+        (float)$rebate > 0 && $net = $net->sub($rebate);
+        (float)$divideAmount > 0 && $net = $net->sub($divideAmount);
+        //报价换算过汇率时可能带 6 位小数，截到分再比，别因为不到 1 分钱的换算误差拦单
+        $cost = (new Decimal(sprintf('%.6F', (float)$quotedRent), 6))->getAmount();
+
+        if (bccomp($net->getAmount(), $cost, 2) < 0) {
+            throw new JSONException(\App\Util\SharedPayload::guardMessage(
+                "对接商品[{$commodityId}]本单实收 {$net->getAmount()} 低于上游进价 {$cost}，已拒绝下单：请开启价格同步或调高加价",
+                "商品价格已变动，请刷新页面后重新下单"
+            ));
+        }
+    }
+
     public function trade(?User $user, ?UserGroup $userGroup, array $map): array
     {
         $commodityId = (int)$map['item_id'];
@@ -493,6 +572,11 @@ class Order implements \App\Service\Order
             $from = $user->pid;
         }
 
+        $promotion = \App\Util\Promotion::enabled();
+        if (!$promotion) {
+            $from = 0;
+        }
+
         if ($commodityId == 0) {
             throw new JSONException("请选择商品");
         }
@@ -501,6 +585,7 @@ class Order implements \App\Service\Order
             throw new JSONException("至少购买1个");
         }
 
+        \App\Util\Schema::ensureCommodityControl();
         $commodity = Commodity::with(['shared'])->find($commodityId);
 
         if (!$commodity) {
@@ -509,6 +594,11 @@ class Order implements \App\Service\Order
 
         if ($commodity->status != 1) {
             throw new JSONException("当前商品已停售");
+        }
+
+        $substation = Business::get();
+        if ($substation && !$substation->sells($commodity)) {
+            throw new JSONException("商品不存在");
         }
 
         if (Config::get("force_login") == 1 || $commodity->only_user == 1 || $commodity->purchase_count > 0) {
@@ -627,6 +717,8 @@ class Order implements \App\Service\Order
         }
 
         $amount = $this->valuation($commodity, $num, $race, $sku, $cardId, $coupon, $userGroup);
+        //对接商品的上游实时报价（询价失败为 0）；下面的 getCost 兜底只是本地估算，不能拿来判断亏本
+        $quotedRent = $rent;
         $rent == 0 && $rent = $this->getCost($commodity, $num, $race, $sku, $cardId);
         $rebate = 0;
         $divideAmount = 0;
@@ -672,6 +764,10 @@ class Order implements \App\Service\Order
             $from = 0;
         }
 
+        if ($commodity->shared) {
+            $this->assertNotBelowUpstreamCost((int)$commodity->id, $quotedRent, $amount, $rebate, $divideAmount, !empty($coupon) && $num == 1);
+        }
+
         $pay = Pay::query()->find($payId);
 
         if (!$pay) {
@@ -690,7 +786,7 @@ class Order implements \App\Service\Order
         }
 
         DB::connection()->getPdo()->exec("set session transaction isolation level serializable");
-        $result = Db::transaction(function () use ($commodity, $rent, $rebate, $divideAmount, $business, $sku, $requestNo, $user, $userGroup, $num, $contact, $device, $amount, $owner, $pay, $cardId, $password, $coupon, $from, $widget, $race, $callbackDomain, $clientDomain) {
+        $result = Db::transaction(function () use ($commodity, $rent, $rebate, $divideAmount, $business, $sku, $requestNo, $user, $userGroup, $num, $contact, $device, $amount, $owner, $pay, $cardId, $password, $coupon, $from, $promotion, $widget, $race, $callbackDomain, $clientDomain) {
             $lockedCommodity = $this->lockCommodityForOrder($commodity);
 
             if ((int)$lockedCommodity->status !== 1) {
@@ -789,6 +885,18 @@ class Order implements \App\Service\Order
 
             $url = "";
             if ((float)$order->amount <= 0) {
+                //0 元直发**只对「本就免费」的商品成立**：零售价/会员价/各价格档全为 0、无成本、非货源。
+                //否则一个被留空或填 0 的价格档、分站四舍五入抹零、100% 会员折扣，或对接方选中 0 价档，
+                //都会让 valuation 算出 0 → 命中这里把**有价值的真实卡密**免费发出去（货源商品平台还要向上游代付）。
+                //有价值的商品却算出 ≤0、且不是满额优惠券抵扣的，一律判为配置异常/被利用，拒单。
+                if ((float)$order->amount < 0) {
+                    throw new JSONException("商品价格配置异常，暂时无法下单，请联系商家");
+                }
+                if ($this->commodityHasPositiveValue($lockedCommodity)
+                    && (empty($order->coupon_id)
+                        || bccomp($this->valuation($lockedCommodity, $num, $race, $sku, $cardId, null, $userGroup), "0", 2) <= 0)) {
+                    throw new JSONException("商品价格配置异常，暂时无法下单，请联系商家");
+                }
                 $order->amount = "0.00";
                 $order->save();
                 $secret = $this->orderSuccess($order);
@@ -810,7 +918,7 @@ class Order implements \App\Service\Order
                         throw new JSONException("You have been banned");
                     }
                     $parent = $session->parent;
-                    if ($parent && $order->user_id != $from) {
+                    if ($promotion && $parent && $order->user_id != $from) {
                         $order->from = $parent->id;
                     }
 
@@ -1030,61 +1138,77 @@ class Order implements \App\Service\Order
 
     private function pullCardForLocal(\App\Model\Order $order, Commodity $commodity): string
     {
-        $secret = "很抱歉，有人在你付款之前抢走了商品，请联系客服。";
+        $soldOut = "很抱歉，有人在你付款之前抢走了商品，请联系客服。";
 
+        //预选卡：下单时 lockLocalDraftCardForOrder 只校验了「未售」但并未落定，付款到发货之间可能被另一笔
+        //同样预选它的订单抢先发出。这里加行锁复查 status 后再落定交付，杜绝同一张卡密发给两个买家。
         $draft = $order->card;
-
         if ($draft) {
-            if ($draft->status == 0) {
-                $secret = $draft->secret;
-                $draft->purchase_time = $order->pay_time;
-                $draft->order_id = $order->id;
-                $draft->status = 1;
-                $draft->save();
-            }
-            return $secret;
-        }
-
-        $direction = match ($commodity->delivery_auto_mode) {
-            0 => "id asc",
-            1 => "rand()",
-            2 => "id desc"
-        };
-        $cards = Card::query()->where("commodity_id", $order->commodity_id)->orderByRaw($direction)->where("status", 0);
-
-        if ($order->race) {
-            $cards = $cards->where("race", $order->race);
-        } else {
-            $cards = $cards->where(function ($query) {
-                $query->whereNull("race")->orWhere("race", "");
+            return DB::transaction(function () use ($order, $draft, $soldOut): string {
+                $locked = Card::query()->whereKey($draft->id)->lockForUpdate()->first();
+                if (!$locked || (int)$locked->status !== 0) {
+                    return $soldOut;
+                }
+                $locked->purchase_time = $order->pay_time;
+                $locked->order_id = $order->id;
+                $locked->status = 1;
+                $locked->save();
+                return (string)$locked->secret;
             });
         }
 
-        if (!empty($order->sku)) {
-            foreach ($order->sku as $k => $v) {
-                $cards = $cards->where("sku->{$k}", $v);
+        $direction = match ($commodity->delivery_auto_mode) {
+            1 => "rand()",
+            2 => "id desc",
+            default => "id asc",
+        };
+
+        //自动拉卡：原实现「读候选」与「标记已售」之间无锁、且 UPDATE 不带 status=0 守卫，两笔并发能读到
+        //同一批 status=0 的卡各自发货（同卡两卖）。照抄预选路径的做法——事务内 lockForUpdate 锁住候选行、
+        //复核数量足够后再原子落定；不足则一张都不抢（避免锁到的卡被标售却没交付=泄漏库存，仍走「付了没货」
+        //由站长手动退款的既有取舍）。高并发下单路径本就在 serializable 事务内，这里的锁与之叠加不改变语义。
+        return DB::transaction(function () use ($order, $direction, $soldOut): string {
+            $cards = Card::query()
+                ->where("commodity_id", $order->commodity_id)
+                ->where("status", 0)
+                ->orderByRaw($direction);
+
+            if ($order->race) {
+                $cards = $cards->where("race", $order->race);
+            } else {
+                $cards = $cards->where(function ($query) {
+                    $query->whereNull("race")->orWhere("race", "");
+                });
             }
-        }
 
-        $cards = $cards->limit($order->card_num)->get();
+            if (!empty($order->sku)) {
+                foreach ($order->sku as $k => $v) {
+                    $cards = $cards->where("sku->{$k}", $v);
+                }
+            }
 
-        if (count($cards) == $order->card_num) {
+            $cards = $cards->lockForUpdate()->limit($order->card_num)->get();
+
+            if (count($cards) != $order->card_num) {
+                return $soldOut;
+            }
+
             $ids = [];
             $cardc = '';
             foreach ($cards as $card) {
                 $ids[] = $card->id;
                 $cardc .= $card->secret . PHP_EOL;
             }
-            try {
-                $rows = Card::query()->whereIn("id", $ids)->update(['purchase_time' => $order->pay_time, 'order_id' => $order->id, 'status' => 1]);
-                if ($rows != 0) {
-                    $secret = trim($cardc, PHP_EOL);
-                }
-            } catch (\Exception $e) {
-            }
-        }
 
-        return $secret;
+            //候选行已被本事务 lockForUpdate 锁住并复核为 status=0，落定必然成功、且不会与并发订单抢到同一张。
+            Card::query()->whereIn("id", $ids)->update([
+                'purchase_time' => $order->pay_time,
+                'order_id' => $order->id,
+                'status' => 1,
+            ]);
+
+            return trim($cardc, PHP_EOL);
+        });
     }
 
     public function callback(string $tradeNo, array $map): string

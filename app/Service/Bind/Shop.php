@@ -124,6 +124,7 @@ class Shop implements \App\Service\Shop
     public function getItem(int|string $commodityId, ?User $user = null, ?UserGroup $group = null): array
     {
         \App\Util\Schema::ensureCommodityTags();
+        \App\Util\Schema::ensureCommodityControl();
 
         $commodity = Commodity::query()->with(['owner' => function (Relation $relation) {
             $relation->select(["id", "username", "avatar"]);
@@ -134,7 +135,7 @@ class Shop implements \App\Service\Shop
                 "level_disable", "coupon", "shared_id", "shared_code", "shared_premium", "shared_premium_type", "seckill_status",
                 "seckill_start_time", "seckill_end_time", "draft_status", "draft_premium", "inventory_hidden",
                 "widget", "minimum", "maximum", "shared_sync", "config", "stock", "code", "shared_amount_sync", "shared_config_sync",
-                "tags"])
+                "tags", "substation_disable"])
             ->withCount(['order as order_sold' => function (Builder $relation) {
                 $relation->where("delivery_status", 1);
             }]);
@@ -151,6 +152,11 @@ class Shop implements \App\Service\Shop
 
         if ($commodity->status != 1) {
             throw new JSONException("该商品暂未上架");
+        }
+
+        $substation = Business::get();
+        if ($substation && !$substation->sells($commodity)) {
+            throw new JSONException("商品不存在");
         }
 
         $shared = \App\Model\Shared::query()->find($commodity->shared_id);
@@ -195,15 +201,6 @@ class Shop implements \App\Service\Shop
 
         $array = $commodity->toArray();
 
-        if (isset($array['config']) && is_array($array['config'])) {
-            foreach ([
-                'category_factory', 'wholesale_factory', 'category_wholesale_factory', 'sku_factory',
-                'category_cost', 'sku_cost', 'shared_mapping',
-            ] as $section) {
-                unset($array['config'][$section]);
-            }
-        }
-
         if ($array["owner"]) {
             $business = Business::query()->where("user_id", $array["owner"]['id'])->first();
             if ($business) {
@@ -237,7 +234,11 @@ class Shop implements \App\Service\Shop
 
         $array['tags'] = Commodity::parseTags($array['tags'] ?? null);
 
-        return $array;
+        //出站清洗放在最后一步：description 要等 RichHtml 处理完、cover 要等空值兜底完。
+        //这条路同时供免登录的前台商品详情和店铺共享的 item 接口使用，两边都不能看到
+        //shared_*（转售身份与上游商品编号）、level_price（会员定价结构）和 config 里的
+        //成本段；详情里的上游图片直链也在这里抹掉。见 App\Util\SharedPayload。
+        return \App\Util\SharedPayload::detail($array);
     }
 
     public function getHideStock(int|string|null $stock): string
@@ -391,29 +392,29 @@ class Shop implements \App\Service\Shop
         $config = $commodity->config ?: [];
 
         if ($userCommodity->premium > 0) {
-            $commodity->price = $userCommodity->applyRounding((new Decimal($commodity->price))->mul($userCommodity->premium / 100)->add($commodity->price)->getAmount());
-            $commodity->user_price = $userCommodity->applyRounding((new Decimal($commodity->user_price))->mul($userCommodity->premium / 100)->add($commodity->user_price)->getAmount());
+            $commodity->price = $userCommodity->markup($commodity->price);
+            $commodity->user_price = $userCommodity->markup($commodity->user_price);
 
             if ($commodity->draft_premium > 0) {
-                $commodity->draft_premium = $userCommodity->applyRounding((new Decimal($commodity->draft_premium))->mul($userCommodity->premium / 100)->add($commodity->draft_premium)->getAmount());
+                $commodity->draft_premium = $userCommodity->markup($commodity->draft_premium);
             }
 
             if (is_array($config['category'])) {
                 foreach ($config['category'] as &$price) {
-                    $price = $userCommodity->applyRounding((new Decimal($price))->mul($userCommodity->premium / 100)->add($price)->getAmount());
+                    $price = $userCommodity->markup($price);
                 }
             }
 
             if (is_array($config['wholesale'])) {
                 foreach ($config['wholesale'] as &$price) {
-                    $price = $userCommodity->applyRounding((new Decimal($price))->mul($userCommodity->premium / 100)->add($price)->getAmount());
+                    $price = $userCommodity->markup($price);
                 }
             }
 
             if (is_array($config['category_wholesale'])) {
                 foreach ($config['category_wholesale'] as &$arr) {
                     foreach ($arr as &$price) {
-                        $price = $userCommodity->applyRounding((new Decimal($price))->mul($userCommodity->premium / 100)->add($price)->getAmount());
+                        $price = $userCommodity->markup($price);
                     }
                 }
             }
@@ -421,7 +422,7 @@ class Shop implements \App\Service\Shop
             if (is_array($config['sku'])) {
                 foreach ($config['sku'] as &$arr) {
                     foreach ($arr as &$price) {
-                        $price = $userCommodity->applyRounding((new Decimal($price))->mul($userCommodity->premium / 100)->add($price)->getAmount());
+                        $price = $userCommodity->markup($price);
                     }
                 }
             }
@@ -453,7 +454,7 @@ class Shop implements \App\Service\Shop
         }
 
         if ($userCommodity->premium > 0) {
-            return $userCommodity->applyRounding((new Decimal($amount))->mul($userCommodity->premium / 100)->add($amount)->getAmount());
+            return $userCommodity->markup($amount);
         }
 
         return (string)$amount;

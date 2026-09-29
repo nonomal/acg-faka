@@ -16,15 +16,22 @@
     };
     const safeItem = item => {
         if (!item) return '-';
+        const banned = Number(item.ban) === 1;
         if (!isSeattleCommodity) {
             const image = item.cover ? `<img src="${escapeHtml(item.cover)}" class="table-item-icon" alt="">` : '';
-            return `<span class="table-item">${image}<span class="table-item-name">${safeInlineHtml(item.name || i18n('未命名商品'))}</span></span>`;
+            const ban = banned
+                ? `<div style="margin-top:4px;white-space:normal"><span class="a-badge a-badge-danger">${i18n('平台下架')}</span>${item.ban_reason ? ` <small style="color:var(--md-error, #d33)">${escapeHtml(item.ban_reason)}</small>` : ''}</div>`
+                : '';
+            return `<span class="table-item">${image}<span class="table-item-name">${safeInlineHtml(item.name || i18n('未命名商品'))}</span></span>${ban}`;
         }
         const image = item.cover
             ? `<span class="st-commodity-product-cell__media"><img src="${escapeHtml(item.cover)}" alt=""></span>`
             : '<span class="st-commodity-product-cell__media"><span class="material-icons-outlined" aria-hidden="true">inventory_2</span></span>';
         const category = item.category && item.category.name ? item.category.name : '未分类';
-        return `<span class="st-commodity-product-cell">${image}<span class="st-commodity-product-cell__copy"><strong>${safeInlineHtml(item.name || i18n('未命名商品'))}</strong><small>${safeInlineHtml(category)}</small></span></span>`;
+        const ban = banned
+            ? `<small style="color:var(--md-error, #d33);white-space:normal">${i18n('平台下架')}${item.ban_reason ? `：${escapeHtml(item.ban_reason)}` : ''}</small>`
+            : '';
+        return `<span class="st-commodity-product-cell">${image}<span class="st-commodity-product-cell__copy"><strong>${safeInlineHtml(item.name || i18n('未命名商品'))}</strong><small>${safeInlineHtml(category)}</small>${ban}</span></span>`;
     };
     const modal = (title, assign = {}) => {
         component.popup({
@@ -299,7 +306,7 @@
                         {title: false, name: "config", type: "textarea", placeholder: "配置参数", height: 480},
                         {
                             title: false, name: "config_tips", type: "custom", complete: (_, __) => {
-                                __.html(`<div class="uc-cardtip"><div class="uc-cardtip__warn"><span class="material-icons-outlined">info</span><span>${i18n('配置参数包含商品种类、多')} SKU ${i18n('等高级功能。修改前请先阅读')}<a href="https://faka.wiki/#/zh-cn/goods-config" target="_blank" rel="noopener noreferrer">${i18n('配置文档')}</a>。</span></div></div>`);
+                                __.html(`<div class="uc-cardtip"><div class="uc-cardtip__warn"><span class="material-icons-outlined">info</span><span>${i18n('配置参数包含商品种类、多')} SKU ${i18n('等高级功能。修改前请先阅读')}<a href="https://faka.wiki/zh-cn/guide/goods-config.html" target="_blank" rel="noopener noreferrer">${i18n('配置文档')}</a>。</span></div></div>`);
                             }
                         },
                     ]

@@ -12,8 +12,10 @@ use App\Service\Email;
 use App\Service\Sms;
 use App\Service\UserSSO;
 use App\Util\Captcha;
+use App\Util\Client;
 use App\Util\Date;
 use App\Util\Str;
+use App\Util\Throttle;
 use App\Util\Validation;
 use Kernel\Annotation\Inject;
 use Kernel\Annotation\Interceptor;
@@ -118,7 +120,7 @@ class Authentication extends User
         //分站上级
         if ($business = \App\Model\Business::get()) {
             $user->pid = $business->user_id;
-        } elseif (isset($_COOKIE['promotion_from']) && \App\Model\User::query()->where("id", $_COOKIE['promotion_from'])->exists()) {
+        } elseif (isset($_COOKIE['promotion_from']) && \App\Util\Promotion::enabled() && \App\Model\User::query()->where("id", $_COOKIE['promotion_from'])->exists()) {
             $user->pid = $_COOKIE['promotion_from'];
         }
 
@@ -298,6 +300,13 @@ class Authentication extends User
     {
         hook(Hook::USER_API_AUTH_LOGIN_BEGIN);
 
+        //登录爆破/撞库限流：验证码已改为一次性（见 Captcha::check），此处再加频率闸。
+        //按来源 IP 计数，挡住单一来源的横向喷洒；成功登录后清零。
+        $ip = Client::getAddress();
+        if (Throttle::tooMany("login:ip:{$ip}", 30, 300)) {
+            throw new JSONException("登录尝试过于频繁，请稍后再试");
+        }
+
         $loginVerification = (int)Config::get("login_verification");
 
         if ($loginVerification == 1 && (!isset($_POST['captcha']) || !Captcha::check((int)$_POST['captcha'], "login"))) {
@@ -306,6 +315,13 @@ class Authentication extends User
 
         if (!isset($_POST['username'])) {
             throw new JSONException("用户名输入错误");
+        }
+
+        //按「账号+IP」再加一道，挡住盯着某个账号猛试的爆破（跨 IP 分布式仍靠上面的 IP 闸兜底）
+        $username = (string)$_POST['username'];
+        $userThrottleKey = "login:user:" . md5(strtolower(trim($username))) . ":{$ip}";
+        if (Throttle::tooMany($userThrottleKey, 10, 300)) {
+            throw new JSONException("登录尝试过于频繁，请稍后再试");
         }
 
         //验证密码
@@ -337,6 +353,10 @@ class Authentication extends User
         $remember = (bool)$this->request->post("remember", Filter::BOOLEAN);
 
         $this->sso->loginSuccess($user, $remember);
+
+        //登录成功，清空该 IP / 账号的失败计数，避免影响后续正常登录
+        Throttle::clear("login:ip:{$ip}");
+        Throttle::clear($userThrottleKey);
 
         Captcha::destroy("login");
         return $this->json(200, "登录成功");
@@ -373,6 +393,19 @@ class Authentication extends User
             throw new JSONException($risk->message("操作过于频繁，请稍后再试"));
         }
 
+        //找回密码是账号接管的高价值面：验证码校验侧原本无任何尝试限制，6 位码可在 300s 窗口内无限爆破。
+        //风控插件（可被停用）不可依赖，这里加硬性双维度限流：IP 维度挡单点喷洒；目标维度**不含 IP**，
+        //杜绝分布式 IP 绕过。触限即销毁该目标的找回验证码，使已发出的码立即失效，攻击者必须重新发码
+        //（发码侧有 60s 冷却 + 图形验证码）。（F-32）
+        $ip = Client::getAddress();
+        $forgetTargetKey = "forget:target:" . md5(strtolower(trim($riskAccount)));
+        if (Throttle::tooMany("forget:ip:{$ip}", 30, 300) || Throttle::tooMany($forgetTargetKey, 10, 600)) {
+            $forgetType == 0
+                ? $this->email->destroyCaptcha($riskAccount, Email::CAPTCHA_FORGET)
+                : $this->sms->destroyCaptcha($riskAccount, Sms::CAPTCHA_FORGET);
+            throw new JSONException("尝试过于频繁，请稍后再试");
+        }
+
         if (!isset($_POST['password']) || !Validation::password((string)$_POST['password'])) {
             throw new JSONException("密码最少6位");
         }
@@ -398,8 +431,17 @@ class Authentication extends User
             $this->sms->destroyCaptcha($_POST['username'], Sms::CAPTCHA_FORGET);
         }
 
+        //账号在「发码后、提交前」被删会让 $user 为 null（低危 500 面），给出通用错误而非崩溃。
+        if (!$user) {
+            throw new JSONException("账号异常，请重新发起找回");
+        }
+
         $user->password = Str::generatePassword($_POST['password'], $user->salt);
         $user->save();
+
+        //成功即清零两个维度的失败计数，避免误伤本人后续操作。
+        Throttle::clear("forget:ip:{$ip}");
+        Throttle::clear($forgetTargetKey);
 
         return $this->json(200, "密码重置成功");
     }
